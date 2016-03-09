@@ -50,6 +50,9 @@ def parse_arguments():
 
     parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
 
+    parser.add_argument('-x', '--post-data-file', help='Path to file with POST data for after_login_url.')
+    parser.add_argument('-s', '--auth-params', help='Basic auth parameters - user:password.')
+
     parser.epilog = "If actual password is not passed in via stdin, the user will be prompted.\n\nSee README for examples."
 
     return parser
@@ -167,6 +170,9 @@ def main():
     logging.debug('Allocating session ...')
     session = requests.session()
 
+    if args.auth_params:
+        session.auth = tuple(args.auth_params.split(':'))
+
     #################
     # get login page
     #################
@@ -208,11 +214,24 @@ def main():
     # make requests of interest
     ############################
 
+    d = {}
+    if args.post_data_file:
+        with open(args.post_data_file) as f:
+            for line in f:
+                if '=' in line:
+                    (key, val) = line.split('=')
+                else:
+                    key, val = line, ''
+                d[key] = val
+    post_data = d
+
     logging.info('Making requests of interest ...')
     for url_after_login in args.url_after_login:
-        logging.info('Performing GET on %s ...' % url_after_login)
-        result = session.get(url_after_login, verify=False, headers={'Referer': result.url, 'User-Agent': args.user_agent_str})
+        logging.info('Performing POST on %s ...' % url_after_login)
+        result = session.post(url_after_login, post_data, verify=False, headers={'Referer': result.url, 'User-Agent': args.user_agent_str})
         logging.info("Request result = %d", result.status_code)
+        args.output.write("URL: %s\n" % result.url)
+        args.output.write("Code: %s\n" % result.status_code)
         args.output.write(result.content.decode('utf-8'))
 
     #########
