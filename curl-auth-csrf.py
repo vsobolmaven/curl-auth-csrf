@@ -11,6 +11,7 @@ import logging
 import sys
 import argparse
 import getpass
+import re
 try:
    import urllib.parse as urlparse
 except ImportError:
@@ -23,7 +24,7 @@ import lxml.html
 VERSION = '1.2.0'
 
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 
 def parse_arguments():
@@ -210,11 +211,17 @@ def main():
 
     verify_login_success(args, result)
 
+    d = {}
+
+    # Grep for csrf field
+    m = re.search('<input id="_csrf" name="_csrf" type="hidden" value="(.*?)" />', result.content.decode('utf-8'))
+    if m:
+        d['_csrf'] = m.group(1)
+
     ############################
     # make requests of interest
     ############################
 
-    d = {}
     if args.post_data_file:
         with open(args.post_data_file) as f:
             for line in f:
@@ -222,7 +229,7 @@ def main():
                     (key, val) = line.split('=')
                 else:
                     key, val = line, ''
-                d[key] = val
+                d[key] = val.strip()
     post_data = d
 
     logging.info('Making requests of interest ...')
@@ -232,7 +239,7 @@ def main():
         logging.info("Request result = %d", result.status_code)
         args.output.write("URL: %s\n" % result.url)
         args.output.write("Code: %s\n" % result.status_code)
-        args.output.write(result.content.decode('utf-8'))
+        args.output.write(result.content)
 
     #########
     # logout
